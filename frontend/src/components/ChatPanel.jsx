@@ -1,22 +1,28 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { sendChat, uploadAudio } from '../api';
+import { streamChat } from '../api';
 import MessageBubble from './MessageBubble';
-import AudioUpload from './AudioUpload';
-import { Send, Mic, Paperclip } from 'lucide-react';
+import AgentNetwork from './AgentNetwork';
+import { ArrowUp } from 'lucide-react';
 
 const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
       role: 'agent',
-      text: "Hey there! I'm NeuroFlow, your study companion. I adapt to how your brain works best.\n\nTry telling me about a lecture you recorded, ask for help studying, or just say hi.",
+      text: "Welcome to **NeuroFlow**. I adapt to how your brain works best.\n\nTry asking me to help you study, plan your day, or start a focus session.",
       agents: [],
       intent: '',
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
+
+  const [streamSteps, setStreamSteps] = useState([]);
+  const [activeAgent, setActiveAgent] = useState(null);
+  const [currentAction, setCurrentAction] = useState(null);
+  const [streamIntent, setStreamIntent] = useState(null);
+  const [streamSources, setStreamSources] = useState([]);
+
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -26,7 +32,7 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
   async function handleSend(text) {
     const msg = text || input.trim();
@@ -36,20 +42,43 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
     const userMsg = { id: Date.now(), role: 'user', text: msg };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
+    setStreamSteps([]);
+    setActiveAgent('orchestrator');
+    setCurrentAction('Classifying intent...');
+    setStreamIntent(null);
+    setStreamSources([]);
 
     try {
-      const data = await sendChat(msg);
-      const agentMsg = {
-        id: Date.now() + 1,
-        role: 'agent',
-        text: data.response,
-        agents: data.agents_used || [],
-        intent: data.intent || '',
-      };
-      setMessages((prev) => [...prev, agentMsg]);
+      const result = await streamChat(msg, (event) => {
+        if (event.type === 'intent') {
+          setStreamIntent(event.intent);
+          setCurrentAction(`Intent: ${event.intent}`);
+        } else if (event.type === 'step') {
+          setStreamSteps((prev) => [...prev, event]);
+          setActiveAgent(event.active || event.to);
+          setCurrentAction(event.action);
+        } else if (event.type === 'sources') {
+          setStreamSources(event.sources || []);
+        }
+      });
 
-      if (data.intent === 'focus' && data.response.toLowerCase().includes('start')) {
-        onFocusStart?.(15);
+      if (result) {
+        const agentMsg = {
+          id: Date.now() + 1,
+          role: 'agent',
+          text: result.response,
+          agents: result.agents_used || [],
+          intent: result.intent || '',
+          chainLog: result.chain_log || [],
+          sources: result.sources || [],
+          canvas: result.canvas || null,
+          proposedSlots: result.proposed_slots || [],
+        };
+        setMessages((prev) => [...prev, agentMsg]);
+
+        if (result.focus_started) {
+          onFocusStart?.(result.focus_duration || 15);
+        }
       }
     } catch {
       setMessages((prev) => [
@@ -58,55 +87,11 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
       ]);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleAudioUpload(file) {
-    setShowUpload(false);
-    const userMsg = { id: Date.now(), role: 'user', text: `🎙️ Uploaded: ${file.name}` };
-    setMessages((prev) => [...prev, userMsg]);
-    setLoading(true);
-
-    try {
-      const uploadResult = await uploadAudio(file);
-
-      const wordCount = uploadResult.word_count || '?';
-      const duration = uploadResult.duration_seconds || '?';
-      const source = uploadResult.source || 'unknown';
-      const preview = uploadResult.transcript
-        ? uploadResult.transcript.substring(0, 500) + (uploadResult.transcript.length > 500 ? '...' : '')
-        : uploadResult.transcript_preview || '';
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'agent',
-          text: `Transcription complete (${source === 'whisper' ? 'Whisper API' : source})\n${wordCount} words · ${duration}s audio\n\n--- Raw transcript ---\n${preview}`,
-          agents: ['transcription'],
-          intent: 'transcribe',
-        },
-      ]);
-
-      setLoading(true);
-      const data = await sendChat(`I just recorded my lecture. Simplify the transcript for me.`);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'agent',
-          text: data.response,
-          agents: data.agents_used || [],
-          intent: data.intent || '',
-        },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: Date.now() + 1, role: 'agent', text: 'Had trouble processing that audio. Try again?', agents: [], intent: 'error' },
-      ]);
-    } finally {
-      setLoading(false);
+      setStreamSteps([]);
+      setActiveAgent(null);
+      setCurrentAction(null);
+      setStreamIntent(null);
+      setStreamSources([]);
     }
   }
 
@@ -120,60 +105,65 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
   return (
     <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full">
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-8 space-y-5">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
+
+        {/* Live agent network visualization while streaming */}
         {loading && (
-          <div className="flex items-center gap-2 px-4 py-3 animate-fade-in">
-            <div className="flex gap-1">
-              <span className="w-2 h-2 rounded-full bg-sage animate-pulse-soft" style={{ animationDelay: '0ms' }} />
-              <span className="w-2 h-2 rounded-full bg-sage animate-pulse-soft" style={{ animationDelay: '300ms' }} />
-              <span className="w-2 h-2 rounded-full bg-sage animate-pulse-soft" style={{ animationDelay: '600ms' }} />
-            </div>
-            <span className="text-sm text-text-muted">Agents working...</span>
+          <div className="flex flex-col items-center gap-4 py-6 animate-fade-in">
+            <AgentNetwork
+              steps={streamSteps}
+              activeAgent={activeAgent}
+              currentAction={currentAction}
+            />
+            {streamIntent && (
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-sage animate-pulse-soft" />
+                Processing <span className="font-semibold text-text">{streamIntent}</span> request
+              </div>
+            )}
+            {streamSources.length > 0 && (
+              <div className="flex flex-wrap gap-2 max-w-[360px] animate-fade-in">
+                {streamSources.map((s, i) => (
+                  <a
+                    key={i}
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-medium px-2.5 py-1 bg-card text-text-muted rounded-full border border-border hover:text-text hover:shadow-sm transition-all truncate max-w-[170px]"
+                    title={s.title}
+                  >
+                    {s.title}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Upload overlay */}
-      {showUpload && (
-        <AudioUpload
-          onUpload={handleAudioUpload}
-          onClose={() => setShowUpload(false)}
-        />
-      )}
-
       {/* Input bar */}
-      <div className="px-4 pb-4 pt-2">
-        <div className="flex items-end gap-2 bg-white rounded-2xl border border-border shadow-sm px-4 py-3">
-          <button
-            onClick={() => setShowUpload(!showUpload)}
-            className="p-1.5 rounded-lg hover:bg-cream transition-colors text-text-muted hover:text-text"
-            title="Upload audio"
-          >
-            <Paperclip size={18} />
-          </button>
+      <div className="px-5 pb-5 pt-2">
+        <div className="flex items-end gap-3 bg-card rounded-2xl border border-border px-4 py-3 shadow-sm">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Tell me about your lecture, ask for help studying..."
+            placeholder="Ask anything — study help, focus session, schedule..."
             rows={1}
             className="flex-1 resize-none bg-transparent outline-none text-sm text-text placeholder-text-muted leading-relaxed max-h-32"
           />
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || loading}
-            className="p-1.5 rounded-lg bg-blue text-white hover:bg-blue/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/80 transition-colors disabled:opacity-20 disabled:cursor-not-allowed flex-shrink-0"
           >
-            <Send size={18} />
+            <ArrowUp size={16} />
           </button>
         </div>
-        <p className="text-center text-xs text-text-muted mt-2 opacity-60">
-          6 agents working together — adapted to your learning style
-        </p>
       </div>
     </div>
   );

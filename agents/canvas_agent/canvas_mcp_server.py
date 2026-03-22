@@ -1,7 +1,5 @@
 import json
-from fastmcp import FastMCP
-
-mcp = FastMCP("NeuroFlowCanvas")
+from datetime import datetime
 
 COURSES = {
     "CS170": {
@@ -19,7 +17,7 @@ COURSES = {
         },
         "assignments": [
             {"title": "HW5: Graph Algorithms", "due": "2026-03-30", "points": 100, "weight": "6%", "submitted": False},
-            {"title": "Midterm", "due": "2026-03-26", "points": 200, "weight": "25%", "submitted": False, "type": "exam"},
+            {"title": "Midterm", "due": "2026-04-01", "points": 200, "weight": "25%", "submitted": False, "type": "exam"},
             {"title": "Lab 6: Dijkstra Implementation", "due": "2026-04-02", "points": 50, "weight": "3%", "submitted": False},
             {"title": "Final Project", "due": "2026-04-15", "points": 300, "weight": "30%", "submitted": False},
         ],
@@ -71,70 +69,45 @@ COURSES = {
         ],
         "exam_topics": [],
     },
-    "EE120": {
-        "name": "Signals & Systems",
-        "instructor": "Prof. Freeman",
-        "schedule": "TTh 14:00-15:30",
+    "CS180": {
+        "name": "Introduction to Artificial Intelligence",
+        "instructor": "Prof. Russell",
+        "schedule": "TTh 10:00-11:15",
         "credits": 4,
-        "current_grade": 85.5,
-        "letter_grade": "B",
+        "current_grade": 87.0,
+        "letter_grade": "B+",
         "grade_breakdown": {
-            "Midterm 1 (20%)": 82,
-            "Midterm 2 (25%)": None,
-            "Homework (25%)": 90,
+            "Midterm (25%)": None,
+            "Homework (30%)": 91,
+            "Project (15%)": None,
             "Final (30%)": None,
         },
         "assignments": [
-            {"title": "HW6: Convolution & LTI Systems", "due": "2026-03-28", "points": 100, "weight": "5%", "submitted": False},
-            {"title": "Midterm 2", "due": "2026-04-02", "points": 200, "weight": "25%", "submitted": False, "type": "exam"},
+            {"title": "HW5: Search Algorithms", "due": "2026-03-28", "points": 100, "weight": "6%", "submitted": False},
+            {"title": "AI Midterm", "due": "2026-03-26", "points": 200, "weight": "25%", "submitted": False, "type": "exam"},
+            {"title": "Project: Multi-Agent System", "due": "2026-04-10", "points": 300, "weight": "15%", "submitted": False},
         ],
         "syllabus_topics": [
-            {"week": 1, "topic": "Signals: Continuous and Discrete"},
-            {"week": 2, "topic": "System Properties: Linearity, Time-Invariance, Causality"},
-            {"week": 3, "topic": "Input-Output Relationships and Abstraction"},
-            {"week": 4, "topic": "LTI Systems and Impulse Response"},
-            {"week": 5, "topic": "Convolution"},
-            {"week": 6, "topic": "Fourier Series"},
-            {"week": 7, "topic": "Fourier Transform"},
-            {"week": 8, "topic": "Frequency Response and Filtering"},
-            {"week": 9, "topic": "Sampling and Aliasing"},
-            {"week": 10, "topic": "Z-Transform and Discrete Systems"},
+            {"week": 1, "topic": "Introduction to AI and Intelligent Agents"},
+            {"week": 2, "topic": "Uninformed Search (BFS, DFS, Iterative Deepening)"},
+            {"week": 3, "topic": "Informed Search (A*, Heuristics, Admissibility)"},
+            {"week": 4, "topic": "Adversarial Search (Minimax, Alpha-Beta Pruning)"},
+            {"week": 5, "topic": "Constraint Satisfaction Problems"},
+            {"week": 6, "topic": "Knowledge Representation and Propositional Logic"},
+            {"week": 7, "topic": "First-Order Logic and Inference"},
+            {"week": 8, "topic": "Bayesian Networks and Probabilistic Reasoning"},
+            {"week": 9, "topic": "Machine Learning Fundamentals"},
+            {"week": 10, "topic": "Neural Networks and Deep Learning"},
+            {"week": 11, "topic": "Natural Language Processing"},
         ],
         "exam_topics": [
-            "Input-output relationships and system abstraction",
-            "System properties (linearity, time-invariance, causality, stability)",
-            "LTI systems and impulse response",
-            "Convolution (continuous and discrete)",
-            "Fourier series and Fourier transform",
-            "Frequency response of LTI systems",
-            "Signal representations (continuous vs discrete)",
+            "A* search and heuristic functions",
+            "Admissibility and consistency of heuristics",
+            "Minimax and alpha-beta pruning",
+            "Knowledge representation",
+            "Bayesian networks and probabilistic inference",
+            "Constraint satisfaction problems",
         ],
-    },
-    "ECON101": {
-        "name": "Principles of Microeconomics",
-        "instructor": "Dr. Chen",
-        "schedule": "TTh 10:00-11:15",
-        "credits": 3,
-        "current_grade": 94.0,
-        "letter_grade": "A",
-        "grade_breakdown": {
-            "Problem Sets (25%)": 96,
-            "Midterm 1 (20%)": 91,
-            "Midterm 2 (20%)": None,
-            "Final (35%)": None,
-        },
-        "assignments": [
-            {"title": "Problem Set 6", "due": "2026-03-28", "points": 50, "weight": "5%", "submitted": False},
-            {"title": "Midterm 2", "due": "2026-04-03", "points": 100, "weight": "20%", "submitted": False, "type": "exam"},
-        ],
-        "syllabus_topics": [
-            {"week": 1, "topic": "Supply and Demand"},
-            {"week": 2, "topic": "Elasticity"},
-            {"week": 3, "topic": "Consumer and Producer Surplus"},
-            {"week": 4, "topic": "Market Efficiency and Market Failure"},
-            {"week": 5, "topic": "Externalities and Public Goods"},
-        ],
-        "exam_topics": [],
     },
 }
 
@@ -146,8 +119,7 @@ def _resolve_course_id(course_id: str) -> str | None:
     aliases = {
         "DATA STRUCTURES": "CS170", "ALGORITHMS": "CS170", "DSA": "CS170",
         "INTRO": "CS105", "INTROCS": "CS105",
-        "SIGNALS": "EE120", "SYSTEMS": "EE120", "EE": "EE120",
-        "ECON": "ECON101", "MICROECONOMICS": "ECON101",
+        "AI": "CS180", "ARTIFICIAL": "CS180", "INTELLIGENCE": "CS180", "CS180": "CS180",
     }
     for alias, cid in aliases.items():
         if alias in upper:
@@ -155,7 +127,6 @@ def _resolve_course_id(course_id: str) -> str | None:
     return None
 
 
-@mcp.tool()
 def get_courses() -> str:
     """Get all enrolled courses this quarter with current grades."""
     summary = []
@@ -172,7 +143,6 @@ def get_courses() -> str:
     return json.dumps({"courses": summary})
 
 
-@mcp.tool()
 def get_assignments(course_id: str) -> str:
     """Get upcoming assignments for a course with due dates and weights."""
     cid = _resolve_course_id(course_id)
@@ -187,7 +157,6 @@ def get_assignments(course_id: str) -> str:
     })
 
 
-@mcp.tool()
 def get_grades(course_id: str) -> str:
     """Get current grade and breakdown for a course."""
     cid = _resolve_course_id(course_id)
@@ -203,7 +172,6 @@ def get_grades(course_id: str) -> str:
     })
 
 
-@mcp.tool()
 def get_syllabus(course_id: str) -> str:
     """Get syllabus topics and exam-critical terms for a course."""
     cid = _resolve_course_id(course_id)
@@ -216,3 +184,32 @@ def get_syllabus(course_id: str) -> str:
         "syllabus": course["syllabus_topics"],
         "exam_topics": course["exam_topics"],
     })
+
+
+def get_all_upcoming(days: int = 14) -> str:
+    """Get all upcoming assignments across all courses, sorted by due date.
+    Useful for the Advisor to know what the student needs to study for."""
+    from datetime import timedelta
+    today = datetime.now().date()
+    cutoff = today + timedelta(days=days)
+    upcoming = []
+    for cid, c in COURSES.items():
+        for a in c["assignments"]:
+            if a["submitted"]:
+                continue
+            due = datetime.strptime(a["due"], "%Y-%m-%d").date()
+            if due <= cutoff:
+                days_left = (due - today).days
+                upcoming.append({
+                    "course_id": cid,
+                    "course_name": c["name"],
+                    "title": a["title"],
+                    "due": a["due"],
+                    "days_left": days_left,
+                    "points": a["points"],
+                    "weight": a["weight"],
+                    "is_exam": a.get("type") == "exam",
+                    "current_grade": c["current_grade"],
+                })
+    upcoming.sort(key=lambda x: x["days_left"])
+    return json.dumps({"upcoming": upcoming, "total": len(upcoming)})
