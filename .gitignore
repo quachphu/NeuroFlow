@@ -209,3 +209,20 @@ __marimo__/
 # Fetch.ai agent keys
 private_keys.json
 **/private_keys.json
+
+# Google OAuth credentials
+credentials.json
+token.json
+
+# Agent data files
+*_data.json
+
+# Demo audio uploads (keep fallback transcript)
+agents/transcription_agent/demo_audio/*.mp3
+agents/transcription_agent/demo_audio/*.wav
+agents/transcription_agent/demo_audio/*.m4a
+agents/transcription_agent/demo_audio/*.webm
+
+# Node
+node_modules/
+frontend/dist/

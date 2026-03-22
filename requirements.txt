@@ -41,3 +41,6 @@ virtualenv==20.34.0
 yarl==1.20.1
 
 python-dotenv
+ddgs
+openai
+fastapi

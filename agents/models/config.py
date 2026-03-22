@@ -4,9 +4,14 @@ from uagents_core.identity import Identity
 
 load_dotenv(find_dotenv())
 
-ALICE_SEED = os.getenv("ALICE_SEED_PHRASE")
-BOB_SEED = os.getenv("BOB_SEED_PHRASE")
-ORCHESTRATOR_SEED = os.getenv("ORCHESTRATOR_SEED_PHRASE")
+ORCHESTRATOR_SEED = os.getenv("ORCHESTRATOR_SEED")
+FOCUS_SEED = os.getenv("FOCUS_SEED")
+CALENDAR_SEED = os.getenv("CALENDAR_SEED")
+ADVISOR_SEED = os.getenv("ADVISOR_SEED")
 
-ALICE_ADDRESS = Identity.from_seed(seed=ALICE_SEED, index=0).address
-BOB_ADDRESS = Identity.from_seed(seed=BOB_SEED, index=0).address
+ASI1_API_KEY = os.getenv("ASI1_API_KEY")
+
+ORCHESTRATOR_ADDRESS = Identity.from_seed(seed=ORCHESTRATOR_SEED, index=0).address
+FOCUS_ADDRESS = Identity.from_seed(seed=FOCUS_SEED, index=0).address
+CALENDAR_ADDRESS = Identity.from_seed(seed=CALENDAR_SEED, index=0).address
+ADVISOR_ADDRESS = Identity.from_seed(seed=ADVISOR_SEED, index=0).address

@@ -1,0 +1,333 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #F5F3EF;
+  --color-cream-dark: #EAE7E1;
+  --color-sage: #6B9E67;
+  --color-sage-light: #D4E6D2;
+  --color-blue: #4A7FB5;
+  --color-blue-light: #C8DAE9;
+  --color-amber: #C4944A;
+  --color-amber-light: #F0DFC4;
+  --color-lavender: #9B8BC4;
+  --color-red: #D45B5B;
+  --color-text: #1A1A1A;
+  --color-text-muted: #8A8A8A;
+  --color-border: #E2E0DB;
+  --color-card: #FFFFFF;
+  --color-primary: #1A1A1A;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--color-cream);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Animations ── */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+/* ── Markdown prose inside agent bubbles ── */
+
+.prose-bubble h1, .prose-bubble h2, .prose-bubble h3 {
+  font-weight: 600;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+.prose-bubble h1 { font-size: 16px; }
+.prose-bubble h2 { font-size: 14px; }
+.prose-bubble h3 { font-size: 13px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.prose-bubble p { margin: 8px 0; line-height: 1.6; }
+.prose-bubble ul, .prose-bubble ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.prose-bubble li { margin: 4px 0; line-height: 1.5; }
+.prose-bubble li::marker { color: var(--color-text-muted); }
+.prose-bubble strong { font-weight: 600; }
+.prose-bubble em { font-style: italic; color: var(--color-text-muted); }
+.prose-bubble hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 14px 0;
+}
+.prose-bubble table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.prose-bubble th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.prose-bubble td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.prose-bubble tr:last-child td { border-bottom: none; }
+.prose-bubble code {
+  background: var(--color-cream);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.prose-bubble blockquote {
+  border-left: 3px solid var(--color-sage);
+  padding-left: 12px;
+  margin: 10px 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.prose-bubble > *:first-child { margin-top: 0; }
+.prose-bubble > *:last-child { margin-bottom: 0; }
+
+/* ── Agent Activity Feed ── */
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.agent-feed-container {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.agent-feed {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+
+/* ── Step Card ── */
+
+.agent-step {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  opacity: 0;
+}
+
+.agent-step-enter {
+  animation: step-in 0.3s ease-out forwards;
+}
+
+.agent-step--past {
+  opacity: 1;
+}
+
+.agent-step--past .agent-step-content {
+  opacity: 0.55;
+}
+
+.agent-step--active .agent-step-content {
+  opacity: 1;
+}
+
+/* ── Timeline (left rail) ── */
+
+.agent-step-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  padding-top: 1px;
+}
+
+.agent-step-line {
+  width: 1.5px;
+  flex: 1;
+  min-height: 8px;
+  margin-top: 4px;
+  border-radius: 1px;
+}
+
+/* ── Avatar ── */
+
+.agent-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: box-shadow 0.3s ease;
+}
+
+.agent-avatar--active {
+  box-shadow: 0 0 0 3px currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 20%, transparent);
+}
+
+/* ── Step Content ── */
+
+.agent-step-content {
+  flex: 1;
+  min-width: 0;
+  transition: opacity 0.3s ease;
+}
+
+.agent-step-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+}
+
+.agent-step-name {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.agent-step-arrow {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin: 0 1px;
+}
+
+.agent-step-pulse {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 4px;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.agent-step-action {
+  font-size: 12px;
+  color: var(--color-text);
+  line-height: 1.4;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-step-detail {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.agent-step-detail-branch {
+  color: var(--color-border);
+  margin-right: 3px;
+  font-size: 10px;
+}
+
+/* ── Thinking state ── */
+
+.agent-step-thinking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+}
+
+.agent-thinking-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Empty / starting state ── */
+
+.agent-feed-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+/* ── Scrollbar ── */
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Utility for line clamping ── */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
