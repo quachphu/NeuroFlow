@@ -33,7 +33,7 @@ async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
     )
 
     if state.chain_data:
-        ctx.logger.info("Chain message from Focus — scheduling study sessions on Google Calendar")
+        ctx.logger.info("Chain message from Focus — finding study slots on Google Calendar")
         chain = json.loads(state.chain_data)
         plan = chain.get("plan", {})
         advisor_data = chain.get("advisor_data", {})
@@ -44,13 +44,16 @@ async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
         strategies = plan.get("strategies", [])
 
         today = datetime.now()
-        scheduled = []
+        proposed_slots = []
 
         for i in range(1, 8):
             d = today + timedelta(days=i)
             if d.weekday() >= 5:
                 continue
             date_str = d.strftime("%Y-%m-%d")
+
+            # Get the day's events for contextual reasons
+            day_events = json.loads(get_events(date_str)).get("events", [])
             free = json.loads(get_free_blocks(date_str))
             best = _pick_best_study_block(free.get("free_blocks", []), duration)
             if not best:
@@ -64,37 +67,59 @@ async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
                 end_m = end_m % 60
             end_time = f"{end_h:02d}:{end_m:02d}"
 
-            strategy_text = ", ".join(strategies[:2]) if strategies else "focused study"
-            result = json.loads(create_event(
-                title=f"Study: {task[:40]}",
-                date=date_str,
-                start=start,
-                end=end_time,
-                description=f"Strategy: {strategy_text}\nScheduled by NeuroFlow Advisor",
-            ))
-            if result.get("created"):
-                scheduled.append({
-                    "day": d.strftime("%A"),
-                    "date": date_str,
-                    "time": f"{start}-{end_time}",
-                    "duration_min": duration,
-                })
+            # Build contextual reason based on surrounding classes
+            hour = int(start.split(":")[0])
+            minute = int(start.split(":")[1]) if ":" in start else 0
+            reason = ""
+            for ev in day_events:
+                ev_end_h, ev_end_m = map(int, ev["end"].split(":"))
+                ev_end_total = ev_end_h * 60 + ev_end_m
+                slot_start_total = hour * 60 + minute
+                if 0 <= (slot_start_total - ev_end_total) <= 30:
+                    reason = f"Right after {ev['title']} — review while material is fresh"
+                    break
+            if not reason:
+                if 9 <= hour < 12:
+                    reason = "Morning gap — fresh-mind window for focused study"
+                elif 13 <= hour <= 17:
+                    reason = f"Open {d.strftime('%A')} afternoon — no classes competing"
+                else:
+                    reason = f"Available slot on {d.strftime('%A')}"
 
-            if len(scheduled) >= 3:
+            proposed_slots.append({
+                "day": d.strftime("%A"),
+                "date": date_str,
+                "start": start,
+                "end": end_time,
+                "duration_min": duration,
+                "reason": reason,
+                "task": task[:40],
+                "strategies": strategies[:2] if strategies else ["focused study"],
+            })
+
+            if len(proposed_slots) >= 3:
                 break
 
+        # Gather day schedules for LLM context
+        day_schedules = {}
+        for slot in proposed_slots:
+            d = slot["date"]
+            if d not in day_schedules:
+                day_schedules[d] = json.loads(get_events(d)).get("events", [])
+
         state.result = json.dumps({
-            "action": "study_plan_scheduled",
-            "scheduled_sessions": scheduled,
+            "action": "study_plan_proposed",
+            "proposed_slots": proposed_slots,
+            "day_schedules": day_schedules,
             "session_plan": plan,
             "advisor_research": advisor_data.get("research", {}),
             "advisor_advice": advisor_data.get("advice", {}),
             "focus_session": session,
-            "message": f"Scheduled {len(scheduled)} study sessions on your Google Calendar.",
+            "message": f"Found {len(proposed_slots)} study slots for you to review.",
         })
 
         target = state.return_address or sender
-        ctx.logger.info(f"Chain complete: Calendar → Orchestrator ({len(scheduled)} sessions scheduled)")
+        ctx.logger.info(f"Chain complete: Calendar → Orchestrator ({len(proposed_slots)} slots proposed)")
         await ctx.send(target, state)
         return
 

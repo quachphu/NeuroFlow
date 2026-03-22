@@ -101,12 +101,12 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
             chat_session_id=chat_session_id,
             query=text,
             user_sender_address=sender,
-            return_address=str(ctx.address),
+            return_address=str(ctx.agent.address),
         )
         state_service.set_state(chat_session_id, state)
     else:
         state.query = text
-        state.return_address = str(ctx.address)
+        state.return_address = str(ctx.agent.address)
         state.chain_data = ""
 
     intent = classify_intent(text)
@@ -296,8 +296,8 @@ def generate_fanout_response(fanout: PendingFanOut) -> str:
         result = format_with_llm(prompt, max_tokens=1000)
         if result:
             return result
-        sessions = data.get("scheduled_sessions", [])
-        return f"Study plan created with {len(sessions)} sessions scheduled on your calendar."
+        slots = data.get("proposed_slots", [])
+        return f"Study plan ready with {len(slots)} proposed time slots for you to review."
 
     elif intent == "focus":
         data = _safe_json(fanout.received.get(FOCUS_ADDRESS, "{}"))

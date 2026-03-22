@@ -392,6 +392,76 @@ def _sse_event(data: dict) -> str:
     return json.dumps(data) + "\n"
 
 
+# ── Agent-routed endpoint (real Fetch.ai agents) ──
+
+ORCHESTRATOR_URL = "http://localhost:8003"
+
+@app.post("/api/chat/agents")
+async def chat_via_agents(req: ChatRequest):
+    """Route the message through real Fetch.ai agents on Agentverse."""
+    import httpx
+    import asyncio
+
+    # Fetch Canvas data (agents don't have Canvas in their chain yet)
+    canvas_data = {}
+    try:
+        canvas_raw = json.loads(canvas_get_upcoming(14))
+        canvas_courses = json.loads(canvas_get_courses())
+        canvas_data = {"upcoming": canvas_raw.get("upcoming", []), "courses": canvas_courses.get("courses", [])}
+    except Exception:
+        pass
+
+    # POST to orchestrator's REST endpoint → triggers real agent chain
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.post(
+                f"{ORCHESTRATOR_URL}/message",
+                json={"content": req.message},
+            )
+            data = resp.json()
+            session_id = data.get("session_id", "")
+            intent = data.get("intent", "unknown")
+        except Exception as e:
+            return {"response": f"Could not reach orchestrator agent: {e}", "intent": "error", "via": "agents", "agents_used": []}
+
+    # Poll for the completed response (agents need time to chain through Agentverse)
+    for _ in range(60):  # up to 60 seconds
+        await asyncio.sleep(1)
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.post(
+                    f"{ORCHESTRATOR_URL}/result",
+                    json={"session_id": session_id},
+                )
+                result = resp.json()
+                if result.get("ready"):
+                    # Parse raw agent data for sources, canvas, scheduled sessions
+                    raw = {}
+                    try:
+                        raw = json.loads(result.get("raw_data", "{}"))
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    # Extract research sources from advisor chain data
+                    sources = raw.get("advisor_research", {}).get("sources", [])
+                    if not sources:
+                        sources = raw.get("research", {}).get("sources", [])
+                    return {
+                        "response": result["response"],
+                        "intent": intent,
+                        "via": "agents",
+                        "agents_used": ["orchestrator", "advisor", "focus", "calendar"],
+                        "sources": sources,
+                        "canvas": canvas_data,
+                        "proposed_slots": raw.get("proposed_slots", []),
+                        "search_query": raw.get("advisor_research", {}).get("search_query", "")
+                                        or raw.get("research", {}).get("search_query", ""),
+                    }
+        except Exception:
+            continue
+
+    return {"response": "Agents are still processing through Agentverse. The chain takes ~30-60s. Try again in a moment.", "intent": intent, "via": "agents", "agents_used": []}
+
+
 @app.post("/api/chat/stream")
 async def chat_stream(req: ChatRequest):
     """SSE streaming endpoint — emits NDJSON events between real processing steps."""

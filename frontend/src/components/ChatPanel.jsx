@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { streamChat } from '../api';
+import { streamChat, sendChatViaAgents } from '../api';
 import MessageBubble from './MessageBubble';
 import AgentNetwork from './AgentNetwork';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Zap, Radio } from 'lucide-react';
 
 const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
   const [messages, setMessages] = useState([
@@ -16,6 +16,7 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [useAgents, setUseAgents] = useState(false);
 
   const [streamSteps, setStreamSteps] = useState([]);
   const [activeAgent, setActiveAgent] = useState(null);
@@ -49,35 +50,57 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
     setStreamSources([]);
 
     try {
-      const result = await streamChat(msg, (event) => {
-        if (event.type === 'intent') {
-          setStreamIntent(event.intent);
-          setCurrentAction(`Intent: ${event.intent}`);
-        } else if (event.type === 'step') {
-          setStreamSteps((prev) => [...prev, event]);
-          setActiveAgent(event.active || event.to);
-          setCurrentAction(event.action);
-        } else if (event.type === 'sources') {
-          setStreamSources(event.sources || []);
-        }
-      });
-
-      if (result) {
+      if (useAgents) {
+        // Real Fetch.ai agents via Agentverse
+        setCurrentAction('Sending to Orchestrator agent on Agentverse...');
+        setStreamSteps([
+          { from: 'orchestrator', to: 'advisor', action: 'Routing through real Fetch.ai agents via Agentverse...', active: 'orchestrator' },
+        ]);
+        const result = await sendChatViaAgents(msg);
         const agentMsg = {
           id: Date.now() + 1,
           role: 'agent',
           text: result.response,
           agents: result.agents_used || [],
           intent: result.intent || '',
-          chainLog: result.chain_log || [],
           sources: result.sources || [],
           canvas: result.canvas || null,
           proposedSlots: result.proposed_slots || [],
+          via: 'agentverse',
         };
         setMessages((prev) => [...prev, agentMsg]);
+      } else {
+        // Fast simulated path with streaming visualization
+        const result = await streamChat(msg, (event) => {
+          if (event.type === 'intent') {
+            setStreamIntent(event.intent);
+            setCurrentAction(`Intent: ${event.intent}`);
+          } else if (event.type === 'step') {
+            setStreamSteps((prev) => [...prev, event]);
+            setActiveAgent(event.active || event.to);
+            setCurrentAction(event.action);
+          } else if (event.type === 'sources') {
+            setStreamSources(event.sources || []);
+          }
+        });
 
-        if (result.focus_started) {
-          onFocusStart?.(result.focus_duration || 15);
+        if (result) {
+          const agentMsg = {
+            id: Date.now() + 1,
+            role: 'agent',
+            text: result.response,
+            agents: result.agents_used || [],
+            intent: result.intent || '',
+            chainLog: result.chain_log || [],
+            sources: result.sources || [],
+            canvas: result.canvas || null,
+            proposedSlots: result.proposed_slots || [],
+          };
+          setMessages((prev) => [...prev, agentMsg]);
+
+          if (result.focus_started) {
+            onFocusStart?.(result.focus_duration || 15);
+          }
         }
       }
     } catch {
@@ -147,12 +170,23 @@ const ChatPanel = forwardRef(function ChatPanel({ onFocusStart }, ref) {
       {/* Input bar */}
       <div className="px-5 pb-5 pt-2">
         <div className="flex items-end gap-3 bg-card rounded-2xl border border-border px-4 py-3 shadow-sm">
+          <button
+            onClick={() => setUseAgents((v) => !v)}
+            title={useAgents ? 'Using real Fetch.ai agents (slower)' : 'Using local simulation (fast)'}
+            className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+              useAgents
+                ? 'bg-sage text-white shadow-sm'
+                : 'bg-cream text-text-muted hover:bg-cream-dark'
+            }`}
+          >
+            {useAgents ? <Radio size={14} /> : <Zap size={14} />}
+          </button>
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything — study help, focus session, schedule..."
+            placeholder={useAgents ? "Via Fetch.ai Agentverse (takes ~12s)..." : "Ask anything — study help, focus session, schedule..."}
             rows={1}
             className="flex-1 resize-none bg-transparent outline-none text-sm text-text placeholder-text-muted leading-relaxed max-h-32"
           />

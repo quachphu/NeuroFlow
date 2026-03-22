@@ -87,3 +87,12 @@ export async function getProfile() {
   const res = await fetch(`${BASE}/advisor`);
   return res.json();
 }
+
+export async function sendChatViaAgents(message) {
+  const res = await fetch(`${BASE}/chat/agents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+  return res.json();
+}
