@@ -223,6 +223,13 @@ agents/transcription_agent/demo_audio/*.wav
 agents/transcription_agent/demo_audio/*.m4a
 agents/transcription_agent/demo_audio/*.webm
 
+# Build plans / dev docs
+finalbuildplan.md
+newbuildplan.md
+.env.example
+docs/DEVELOPER_GUIDE.md
+
 # Node
 node_modules/
 frontend/dist/
+frontend/.vite/
