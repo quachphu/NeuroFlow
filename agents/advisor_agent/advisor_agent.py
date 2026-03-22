@@ -37,60 +37,62 @@ def _save_profile(ctx: Context, profile: dict):
 def _research_strategies(disability: str, context: str, profile: dict | None = None) -> dict:
     """Search the web for study strategies tailored to the user's actual query.
 
-    Builds a smart search query that combines:
-    - The student's actual topic / subject (extracted from *context*)
-    - Their disability type
-    - Profile preferences (best_focus_time, challenges) when available
-    - Study-context clues (exam prep, homework, focus, etc.)
+    Builds a SHORT, focused search query (DuckDuckGo works best under 60 chars).
+    Format: "{subject} {context} {disability} study tips"
     """
     import re
 
     profile = profile or {}
     lower = context.lower()
 
-    # --- Detect study context (exam, homework, focus, etc.) ---
+    # --- Detect study context ---
     context_tag = ""
     if any(w in lower for w in ["exam", "midterm", "final", "test", "quiz"]):
         context_tag = "exam prep"
     elif any(w in lower for w in ["homework", "hw", "assignment", "problem set"]):
-        context_tag = "homework help"
+        context_tag = "homework"
     elif any(w in lower for w in ["focus", "concentrate", "distract"]):
-        context_tag = "focus strategies"
-    elif any(w in lower for w in ["review", "revise", "study"]):
-        context_tag = "study techniques"
+        context_tag = "focus"
+    elif any(w in lower for w in ["priority", "prioritize", "first", "order", "optimal"]):
+        context_tag = "study prioritization"
 
-    # --- Extract the core topic from the user's message ---
-    # Strip common chat-style phrasing to isolate the subject
-    topic = re.sub(
-        r'^(help me|can you|please|i need to|i want to|how do i|how to|'
-        r'i need help with|help with|let me|i have to)\s+',
-        '', lower,
-    )
-    topic = re.sub(r'\s+(please|thanks|thank you|asap)$', '', topic)
-    # Keep it concise: first 60 chars max
-    topic = topic[:60].strip()
+    # --- Extract the core subject (keep it SHORT) ---
+    # Look for known subjects first
+    subject = ""
+    subject_keywords = {
+        "cs170": "data structures", "cs105": "computer science",
+        "cs180": "artificial intelligence", "ai": "artificial intelligence",
+        "data structures": "data structures", "algorithms": "algorithms",
+        "calculus": "calculus", "physics": "physics", "econ": "economics",
+        "machine learning": "machine learning", "programming": "programming",
+    }
+    for kw, subj in subject_keywords.items():
+        if kw in lower:
+            subject = subj
+            break
 
-    # --- Build the search query ---
-    parts = []
+    # If no known subject, extract key nouns
+    if not subject:
+        cleaned = re.sub(
+            r'(help me|can you|please|i need|i want|how do i|how to|study for|'
+            r'prepare for|my|the|a|an|this|week|should|which|finish|first|last)\s*',
+            '', lower,
+        )
+        words = [w for w in cleaned.split() if len(w) > 2 and w not in {"also", "being", "way", "that", "helps"}]
+        subject = " ".join(words[:3])
+
+    # --- Build concise query (under 80 chars for best DuckDuckGo results) ---
+    parts = [disability, "student"]
+    if subject:
+        parts.append(subject)
     if context_tag:
-        parts.append(f"how to {context_tag}")
-    if topic and topic != context_tag:
-        parts.append(f"for {topic}")
-    parts.append(f"with {disability}")
-
-    # Fold in profile preferences when they add useful specificity
-    best_time = profile.get("best_focus_time")
-    if best_time:
-        parts.append(f"{best_time} studying tips")
-
-    challenges = profile.get("challenges")
-    if challenges:
-        parts.append("with " + " and ".join(challenges[:2]))
-
+        parts.append(context_tag)
+    parts.append("study strategies")
     query = " ".join(parts)
-    # Safety cap — DuckDuckGo handles long queries poorly
-    if len(query) > 200:
-        query = query[:200]
+
+    # Keep it short — long queries return garbage on DuckDuckGo
+    if len(query) > 80:
+        query = query[:80].rsplit(" ", 1)[0]
 
     try:
         from ddgs import DDGS

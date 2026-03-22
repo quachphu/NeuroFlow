@@ -135,6 +135,25 @@ def _cached_research(disability: str, query: str) -> dict:
     """
     import time
     topic = _extract_study_topic(query)
+
+    # If topic is too generic (e.g. "midterm this week"), try to enrich it
+    # by looking at Canvas for upcoming exams
+    generic_words = {"midterm", "exam", "final", "test", "quiz", "this", "week", "study", "general study skills"}
+    topic_words = set(topic.lower().split())
+    if topic_words.issubset(generic_words):
+        try:
+            canvas_raw = json.loads(canvas_get_upcoming(7))
+            exams = [a for a in canvas_raw.get("upcoming", [])
+                     if any(w in a.get("title", "").lower() for w in ["midterm", "exam", "final", "test", "quiz"])]
+            if exams:
+                # Use the soonest exam's course as the topic
+                exam = exams[0]
+                course_name = exam.get("course", "").lower()
+                exam_title = exam.get("title", "")
+                topic = f"{course_name} {exam_title}".strip()[:60]
+        except Exception:
+            pass
+
     key = f"{disability.lower()}:{topic}"
     now = time.time()
     cached = _research_cache.get(key)
@@ -391,8 +410,8 @@ async def chat_stream(req: ChatRequest):
             canvas_data = {}
             proposed_slots = []
 
-            # Step 0: Advisor pulls Canvas assignments
-            step = {"from": "orchestrator", "to": "advisor", "action": "Fetching Canvas assignments & grades"}
+            # Step 0: Orchestrator dispatches to Advisor with Canvas data
+            step = {"from": "orchestrator", "to": "advisor", "action": f"Routing '{req.message[:40]}' — pulling Canvas data first"}
             chain_log.append(step)
             yield _sse_event({"type": "step", **step, "active": "advisor"})
 
@@ -401,11 +420,12 @@ async def chat_stream(req: ChatRequest):
             canvas_data = {"upcoming": canvas_raw.get("upcoming", []), "courses": canvas_courses.get("courses", [])}
             n_upcoming = canvas_raw.get("total", 0)
 
+            # Show what Canvas found — list actual assignments
             urgent = [a for a in canvas_raw.get("upcoming", []) if a.get("days_left", 99) <= 5]
-            urgent_preview = ", ".join(a.get("title", "")[:30] for a in urgent[:3]) if urgent else "none this week"
-            step = {"from": "advisor", "to": "advisor", "action": f"Found {n_upcoming} upcoming assignments across {len(canvas_data['courses'])} courses"}
+            all_titles = [f"{a['title']} ({a.get('days_left', '?')}d)" for a in canvas_raw.get("upcoming", [])[:4]]
+            step = {"from": "advisor", "to": "advisor", "action": f"Loaded {n_upcoming} assignments from Canvas LMS"}
             chain_log.append(step)
-            yield _sse_event({"type": "step", **step, "active": "advisor", "detail": f"Urgent: {urgent_preview}"})
+            yield _sse_event({"type": "step", **step, "active": "advisor", "detail": ", ".join(all_titles) if all_titles else "No upcoming assignments"})
 
             # Step 1: Advisor web research (cached)
             disability = _profile.get("disability_type", "ADHD")
@@ -431,28 +451,38 @@ async def chat_stream(req: ChatRequest):
 
             advice = _synthesize_advice(_profile, research, req.message)
 
-            # Step 2: Advisor → Focus
-            advice_preview = advice.get("advice", "")[:80] if advice.get("advice") else "strategies ready"
-            step = {"from": "advisor", "to": "focus", "action": "Forward research + Canvas data for session planning"}
+            # Step 2: Advisor → Focus (show what advice is being passed)
+            strat_preview = " + ".join(s[:35] for s in advice.get("strategies", [])[:2]) or "strategies ready"
+            step = {"from": "advisor", "to": "focus", "action": f"Passing {len(advice.get('strategies', []))} strategies to Focus Agent"}
             chain_log.append(step)
-            yield _sse_event({"type": "step", **step, "active": "focus", "detail": advice_preview})
+            yield _sse_event({"type": "step", **step, "active": "focus", "detail": strat_preview})
 
             duration = advice.get("recommended_session_length", _profile.get("preferred_session_length", 15))
             strategies = advice.get("strategies", [])
             focus_raw = start_session(duration, req.message[:50])
 
-            step = {"from": "focus", "to": "focus", "action": f"Built {duration}-min session plan using Advisor's strategies"}
+            key_insight = advice.get("key_insight", "")[:80]
+            step = {"from": "focus", "to": "focus", "action": f"Designed {duration}-min focused session based on Advisor's research"}
             chain_log.append(step)
-            yield _sse_event({"type": "step", **step, "active": "focus", "detail": f"{duration}-min session"})
+            yield _sse_event({"type": "step", **step, "active": "focus", "detail": key_insight or f"Session length optimized for {disability}"})
 
-            # Step 3: Focus → Calendar (propose slots, don't book yet)
-            step = {"from": "focus", "to": "calendar", "action": "Checking your calendar for free slots"}
+            # Step 3: Focus → Calendar (propose slots, show what's being checked)
+            step = {"from": "focus", "to": "calendar", "action": "Scanning your weekly schedule for study windows"}
             chain_log.append(step)
             yield _sse_event({"type": "step", **step, "active": "calendar"})
 
             today = datetime.now().strftime("%Y-%m-%d")
             free_raw = get_free_blocks(today)
             deadlines_raw = get_upcoming_deadlines(14)
+
+            # Show calendar checking events
+            today_events = json.loads(get_events(today)).get("events", [])
+            event_names = [e["title"] for e in today_events[:4]]
+            if event_names:
+                step = {"from": "calendar", "to": "calendar", "action": f"Today's schedule: {', '.join(event_names)}"}
+                chain_log.append(step)
+                yield _sse_event({"type": "step", **step, "active": "calendar"})
+
             proposed_slots = _propose_slots(req.message, duration, strategies, canvas_data.get("upcoming", []))
 
             # Gather the schedule for each proposed day so the LLM can see lectures + gaps
@@ -462,10 +492,15 @@ async def chat_stream(req: ChatRequest):
                 if d not in day_schedules:
                     day_schedules[d] = json.loads(get_events(d)).get("events", [])
 
-            slot_preview = "; ".join(f"{s['day']} {s['start']}-{s['end']}" for s in proposed_slots[:3]) if proposed_slots else "none found"
-            step = {"from": "calendar", "to": "orchestrator", "action": f"Found {len(proposed_slots)} available slots for you to review"}
+            # Show each proposed slot with its contextual reason
+            for s in proposed_slots[:3]:
+                step = {"from": "calendar", "to": "calendar", "action": f"{s['day']} {s['start']}-{s['end']} — {s['reason']}"}
+                chain_log.append(step)
+                yield _sse_event({"type": "step", **step, "active": "calendar"})
+
+            step = {"from": "calendar", "to": "orchestrator", "action": f"Proposed {len(proposed_slots)} study slots based on your class schedule"}
             chain_log.append(step)
-            yield _sse_event({"type": "step", **step, "active": "orchestrator", "detail": slot_preview})
+            yield _sse_event({"type": "step", **step, "active": "orchestrator"})
 
             plan_data = {
                 "proposed_slots": proposed_slots,
@@ -680,7 +715,7 @@ async def chat_stream(req: ChatRequest):
 
 
 def _propose_slots(task: str, duration: int, strategies: list, canvas_upcoming: list = None) -> list:
-    """Find available time slots but don't book them. Returns proposals with reasons."""
+    """Find available time slots but don't book them. Returns proposals with contextual reasons."""
     from datetime import timedelta
     today = datetime.now()
     proposals = []
@@ -695,38 +730,57 @@ def _propose_slots(task: str, duration: int, strategies: list, canvas_upcoming: 
         if d.weekday() >= 5:
             continue
         date_str = d.strftime("%Y-%m-%d")
+
+        # Get the day's events so we can build contextual reasons
+        day_events = json.loads(get_events(date_str)).get("events", [])
         free = json.loads(get_free_blocks(date_str))
         blocks = free.get("free_blocks", [])
         best = None
         reason = ""
 
-        # Prefer afternoon blocks (research shows better focus for ADHD)
+        # Find the best block and build a reason referencing actual classes
         for b in blocks:
-            if b["duration_min"] >= duration:
-                hour = int(b["start"].split(":")[0])
-                if 13 <= hour <= 17:
-                    best = b
-                    reason = "Afternoon slot — research shows better focus after lunch"
-                    break
-        if not best:
-            for b in blocks:
-                if b["duration_min"] >= duration:
-                    best = b
-                    hour = int(b["start"].split(":")[0])
-                    if hour < 12:
-                        reason = "Morning slot — good for fresh material"
-                    else:
-                        reason = "Available slot in your free time"
-                    break
+            if b["duration_min"] < duration:
+                continue
+            hour = int(b["start"].split(":")[0])
+            minute = int(b["start"].split(":")[1]) if ":" in b["start"] else 0
+
+            # Find what class/event ends right before this free block
+            preceding_class = None
+            following_class = None
+            for ev in day_events:
+                ev_end_h, ev_end_m = map(int, ev["end"].split(":"))
+                ev_start_h, ev_start_m = map(int, ev["start"].split(":"))
+                # Event ends within 30 min before our slot starts
+                ev_end_total = ev_end_h * 60 + ev_end_m
+                slot_start_total = hour * 60 + minute
+                if 0 <= (slot_start_total - ev_end_total) <= 30:
+                    preceding_class = ev["title"]
+                # Event starts after our slot
+                if ev_start_h * 60 + ev_start_m > slot_start_total and not following_class:
+                    following_class = ev["title"]
+
+            if preceding_class:
+                reason = f"Right after {preceding_class} — review while material is fresh"
+            elif 9 <= hour < 12:
+                reason = f"Morning gap — {_profile.get('disability_type', 'ADHD')}-friendly fresh-mind window"
+            elif following_class:
+                reason = f"Before {following_class} — warm up with related concepts"
+            else:
+                reason = f"Open {d.strftime('%A')} slot — no classes competing for attention"
+
+            best = b
+            break
+
         if not best:
             continue
 
-        # Check if there's a deadline nearby
+        # Override with deadline-aware reasons (higher priority)
         if date_str in deadline_dates:
-            reason = f"Day of {deadline_dates[date_str]} — final review session"
+            reason = f"Day of {deadline_dates[date_str]} deadline — final review session"
         day_before = (d - timedelta(days=1)).strftime("%Y-%m-%d")
         if day_before in deadline_dates:
-            reason = f"Day before {deadline_dates[day_before]} — last prep session"
+            reason = f"Day before {deadline_dates[day_before]} due — last prep session"
 
         start = best["start"]
         sh, sm = map(int, start.split(":"))
