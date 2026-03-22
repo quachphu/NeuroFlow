@@ -1,24 +1,38 @@
+# NeuroFlow
 
-NeuroFlow
 A multi-agent study companion for neurodivergent students, built with Fetch.ai's uAgent framework and ASI-1 Mini.
 
-What it does
+## What It Does
+
 NeuroFlow adapts to how your brain works. It connects your calendar, course assignments, and disability profile to create personalized study plans with smart scheduling.
 
-4 AI Agents working together:
+### 4 AI Agents Working Together
 
-Orchestrator — Classifies intent and routes queries through the agent chain
-Advisor — Researches disability-specific study strategies using live web search
-Focus — Builds adapted focus sessions (duration, breaks, techniques)
-Calendar — Finds optimal study slots based on your actual class schedule
+| Agent | Role |
+|---|---|
+| **Orchestrator** | Classifies intent and routes queries through the agent chain |
+| **Advisor** | Researches disability-specific study strategies using live web search |
+| **Focus** | Builds adapted focus sessions (duration, breaks, techniques) |
+| **Calendar** | Finds optimal study slots based on your actual class schedule |
 
-Tech Stack
-Backend: Python, FastAPI, Fetch.ai uAgents, ASI-1 Mini
-Frontend: React 19, Vite, Tailwind CSS
-Integrations: Google Calendar API, Canvas LMS, DuckDuckGo Search
-Protocols: Agentverse mailbox, MCP, DeltaV chat protocol
+## How It Works
 
+1. User sends a message (e.g., *"help me study for my AI midterm"*)
+2. Orchestrator classifies intent → triggers agent chain
+3. Advisor researches strategies for the student's disability
+4. Focus builds an adapted session plan
+5. Calendar finds open slots around existing classes
+6. Response is synthesized and returned with proposed time slots
 
+## Tech Stack
+
+**Backend:** Python, FastAPI, Fetch.ai uAgents, ASI-1 Mini
+**Frontend:** React 19, Vite, Tailwind CSS
+**Integrations:** Google Calendar API, Canvas LMS, DuckDuckGo Search
+**Protocols:** Agentverse mailbox, MCP, DeltaV chat protocol
+
+## Getting Started
+```bash
 # Clone and install
 git clone https://github.com/your-repo/AccessOrchestra.git
 cd AccessOrchestra
@@ -40,13 +54,10 @@ python server.py
 
 # Frontend
 cd frontend && npm install && npm run dev
-Open http://localhost:8080 to use the app.
+```
 
-How it works
-User sends a message (e.g., "help me study for my AI midterm")
-Orchestrator classifies intent → triggers agent chain
-Advisor researches strategies for the student's disability
-Focus builds an adapted session plan
-Calendar finds open slots around existing classes
-Response is synthesized and returned with proposed time slots
-Built at BeachHacks 2025
+Open [http://localhost:8080](http://localhost:8080) to use the app.
+
+---
+
+*Built at BeachHacks 2025*
