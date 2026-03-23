@@ -6,8 +6,6 @@ A multi-agent study companion for neurodivergent students, built with Fetch.ai's
 
 NeuroFlow adapts to how your brain works. It connects your calendar, course assignments, and disability profile to create personalized study plans with smart scheduling.
 
-### 4 AI Agents Working Together
-
 | Agent | Role |
 |---|---|
 | **Orchestrator** | Classifies intent and routes queries through the agent chain |
