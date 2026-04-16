@@ -24,7 +24,7 @@ NeuroFlow adapts to how your brain works. It connects your calendar, course assi
 
 ## Tech Stack
 
-**Backend:** Python, FastAPI, Fetch.ai uAgents, ASI-1 Mini
+**Backend:** Python, Fetch.ai uAgents, ASI-1 Mini
 **Frontend:** React 19, Vite, Tailwind CSS
 **Integrations:** Google Calendar API, Canvas LMS, DuckDuckGo Search
 **Protocols:** Agentverse mailbox, MCP, DeltaV chat protocol
